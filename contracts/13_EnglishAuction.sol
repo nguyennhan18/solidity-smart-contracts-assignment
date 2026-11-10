@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract EnglishAuction {
+    address payable public seller; uint256 public auctionEnd; address public highestBidder; uint256 public highestBid; uint256 public constant MIN_INCREMENT=5; mapping(address=>uint256) public pendingReturns; bool public ended;
+    event NewBid(address indexed bidder,uint256 amount); event AuctionEnded(address winner,uint256 amount);
+    constructor(uint256 _biddingSeconds,uint256 _startPrice){require(_biddingSeconds>0,"Duration is zero");seller=payable(msg.sender);auctionEnd=block.timestamp+_biddingSeconds;highestBid=_startPrice;}
+    function bid() external payable { require(!ended && block.timestamp < auctionEnd,"Auction ended"); require(msg.value >= highestBid*(100+MIN_INCREMENT)/100,"Bid increment too low"); if(highestBidder!=address(0)) pendingReturns[highestBidder]+=highestBid; highestBidder=msg.sender; highestBid=msg.value; emit NewBid(msg.sender,msg.value); }
+    function withdrawPending() external returns(bool) { uint amount=pendingReturns[msg.sender]; require(amount>0,"No pending return"); pendingReturns[msg.sender]=0; (bool ok,)=payable(msg.sender).call{value:amount}(""); if(!ok){pendingReturns[msg.sender]=amount; return false;} return true; }
+    function endAuction() external { require(!ended,"Already ended"); require(block.timestamp>=auctionEnd,"Auction not finished"); ended=true; if(highestBidder!=address(0)){(bool ok,)=seller.call{value:highestBid}(""); require(ok,"Payout failed");} emit AuctionEnded(highestBidder,highestBid); }
+}
